@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WideCanvas.AI - Modern Meme Platform</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .meme-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            padding: 1rem;
+        }
+        .loading-spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen">
+        <!-- Navigation -->
+        <nav class="bg-white shadow-md">
+            <div class="container mx-auto px-4 py-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <h1 class="text-2xl font-bold text-blue-600">WideCanvas.AI</h1>
+                        <div class="relative">
+                            <input type="text" v-model="searchQuery" placeholder="Search memes..." 
+                                   class="w-64 px-4 py-2 rounded-full border focus:outline-none focus:border-blue-500">
+                            <i class="bi bi-search absolute right-3 top-2.5 text-gray-400"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button @click="openUploadModal" class="bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600 transition">
+                            <i class="bi bi-plus-lg mr-2"></i>Upload Meme
+                        </button>
+                        <button class="bg-gray-100 p-2 rounded-full hover:bg-gray-200">
+                            <i class="bi bi-person-circle text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Categories -->
+        <div class="bg-white shadow-sm mt-2">
+            <div class="container mx-auto px-4 py-3">
+                <div class="flex space-x-4 overflow-x-auto no-scrollbar">
+                    <button v-for="category in categories" :key="category"
+                            :class="['px-4 py-2 rounded-full whitespace-nowrap',
+                                    selectedCategory === category ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200']"
+                            @click="selectCategory(category)">
+                        {{ category }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="container mx-auto mt-6">
+            <div v-if="loading" class="flex justify-center items-center h-64">
+                <i class="bi bi-arrow-repeat text-4xl text-blue-500 loading-spinner"></i>
+            </div>
+            <div v-else class="meme-grid">
+                <div v-for="meme in memes" :key="meme.id" 
+                     class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
+                    <img :src="meme.imageUrl" :alt="meme.title" class="w-full h-64 object-cover cursor-pointer"
+                         @click="openMemeDetail(meme)">
+                    <div class="p-4">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-medium">{{ meme.title }}</h3>
+                            <div class="flex items-center space-x-3">
+                                <button @click="toggleLike(meme)" class="text-gray-500 hover:text-red-500">
+                                    <i :class="['bi', meme.liked ? 'bi-heart-fill text-red-500' : 'bi-heart']"></i>
+                                    <span class="ml-1">{{ meme.likes }}</span>
+                                </button>
+                                <button @click="downloadMeme(meme)" class="text-gray-500 hover:text-blue-500">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <button @click="shareMeme(meme)" class="text-gray-500 hover:text-blue-500">
+                                    <i class="bi bi-share"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Upload Modal -->
+        <div v-if="showUploadModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg p-6 w-full max-w-md">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Upload Meme</h2>
+                    <button @click="showUploadModal = false" class="text-gray-500 hover:text-gray-700">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer"
+                         @click="triggerFileInput">
+                        <i class="bi bi-cloud-upload text-4xl text-gray-400"></i>
+                        <p class="mt-2 text-gray-600">Click to upload or drag and drop</p>
+                        <input type="file" ref="fileInput" class="hidden" @change="handleFileUpload" accept="image/*">
+                    </div>
+                    <input type="text" v-model="newMemeTitle" placeholder="Enter meme title" 
+                           class="w-full px-4 py-2 border rounded focus:outline-none focus:border-blue-500">
+                    <select v-model="newMemeCategory" class="w-full px-4 py-2 border rounded focus:outline-none focus:border-blue-500">
+                        <option value="">Select Category</option>
+                        <option v-for="category in categories" :key="category" :value="category">{{ category }}</option>
+                    </select>
+                    <button @click="uploadMeme" class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600">
+                        Upload
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    searchQuery: '',
+                    categories: ['Trending', 'Latest', 'Animals', 'Gaming', 'Movies', 'Sports', 'Politics'],
+                    selectedCategory: 'Trending',
+                    loading: false,
+                    showUploadModal: false,
+                    newMemeTitle: '',
+                    newMemeCategory: '',
+                    memes: [
+                        {
+                            id: 1,
+                            title: "Gaming Moment",
+                            imageUrl: "https://source.unsplash.com/random/800x600/?gaming",
+                            likes: 245,
+                            liked: false
+                        },
+                        {
+                            id: 2,
+                            title: "Cat Logic",
+                            imageUrl: "https://source.unsplash.com/random/800x600/?cat",
+                            likes: 532,
+                            liked: false
+                        },
+                        // Add more mock memes here
+                    ]
+                }
+            },
+            methods: {
+                selectCategory(category) {
+                    this.selectedCategory = category;
+                    this.loading = true;
+                    // Simulate API call
+                    setTimeout(() => {
+                        this.loading = false;
+                    }, 1000);
+                },
+                toggleLike(meme) {
+                    meme.liked = !meme.liked;
+                    meme.likes += meme.liked ? 1 : -1;
+                },
+                openUploadModal() {
+                    this.showUploadModal = true;
+                },
+                triggerFileInput() {
+                    this.$refs.fileInput.click();
+                },
+                handleFileUpload(event) {
+                    // Handle file upload logic
+                    console.log('File selected:', event.target.files[0]);
+                },
+                uploadMeme() {
+                    // Handle meme upload logic
+                    this.showUploadModal = false;
+                    this.newMemeTitle = '';
+                    this.newMemeCategory = '';
+                },
+                downloadMeme(meme) {
+                    // Handle meme download logic
+                    console.log('Downloading meme:', meme.id);
+                },
+                shareMeme(meme) {
+                    // Handle meme sharing logic
+                    if (navigator.share) {
+                        navigator.share({
+                            title: meme.title,
+                            url: meme.imageUrl
+                        });
+                    }
+                },
+                openMemeDetail(meme) {
+                    // Handle opening meme detail view
+                    console.log('Opening meme:', meme.id);
+                }
+            },
+            mounted() {
+                // Initialize with loading state
+                this.loading = true;
+                setTimeout(() => {
+                    this.loading = false;
+                }, 1000);
+            }
+        }).mount('#app')
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
